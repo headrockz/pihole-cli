@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+
+
+# Function to add a new DNS record
+add_dns() {
+    local dns="$1"
+    local ip="$2"
+
+    if [ -z "$DNS_PATH" ]; then
+        echo "Erro: A variável de ambiente DNS_PATH não está definida!"
+        exit 1
+    fi
+    
+    if grep -q "$dns$" "$DNS_PATH"; then
+        echo "Erro: O DNS $dns já existe em $DNS_PATH!"
+        exit 1
+    fi
+
+    echo "$ip $dns" >> "$DNS_PATH"
+    echo "DNS adicionado: $ip $dns em $DNS_PATH"
+}
+
+# Function to update an existing DNS record
+update_dns() {
+    local dns="$1"
+    local ip="$2"
+
+    if [ -z "$DNS_PATH" ]; then
+        echo "Erro: A variável de ambiente DNS_PATH não está definida!"
+        exit 1
+    fi
+
+    if [ ! -f "$DNS_PATH" ]; then
+        echo "Erro: O arquivo $DNS_PATH não existe!"
+        exit 1
+    fi
+
+    if grep -q " $dns$" "$DNS_PATH"; then
+        sed -i "/ $dns$/s/^.* /$ip /" "$DNS_PATH"
+        echo "DNS atualizado: $dns para IP $ip em $DNS_PATH"
+    else
+        echo "Erro: DNS $dns não encontrado em $DNS_PATH!"
+        exit 1
+    fi
+}
+
+# Function to add a new CNAME record
+add_cname() {
+    local cname="$1"
+    local dns="$2"
+
+    if [ -z "$CNAME_PATH" ]; then
+        echo "Erro: A variável de ambiente $CNAME_FILE não está definida!"
+        exit 1
+    fi
+
+    if grep -q "cname=$cname," "$CNAME_FILE"; then
+        echo "Erro: O CNAME $cname já existe em $CNAME_FILE!"
+        exit 1
+    fi
+
+    echo "cname=$cname,$dns" >> "$CNAME_FILE"
+    echo "CNAME adicionado: $dns $cname em $CNAME_FILE"
+}
+
+
+# Function to update an existing CNAME record
+update_cname() {
+    local cname="$1"
+    local dns="$2"
+
+    if [ -z "$CNAME_FILE" ]; then
+        echo "Error: The environment variable $CNAME_FILE is not defined!"
+        exit 1
+    fi
+
+    if [ ! -f "$CNAME_FILE" ]; then
+        echo "Error: The file $CNAME_FILE does not exist!"
+        exit 1
+    fi
+
+    if grep -q "cname=$cname" "$CNAME_FILE"; then
+        sed -i "s|cname=$cname,.*|cname=$cname,$dns|" "$CNAME_FILE"
+        echo "CNAME updated: $cname to $dns in $CNAME_FILE"
+    else
+        echo "Error: CNAME $cname not found in $CNAME_FILE!"
+        exit 1
+    fi
+}
+
+
+# Função usage para exibir como usar o CLI
+usage() {
+    echo "Uso: $0 <command> [options]"
+    echo ""
+    echo "Available commands:"
+    echo "  add-dns        Adds a new DNS record to the file"
+    echo "  update-dns     Updates an existing DNS record"
+    echo "  add-cname      Adds a new CNAME record to the file"
+    echo "  update-cname   Updates an existing CNAME record"
+    echo ""
+    echo "Opções:"
+    echo "  --dns <dns>    Define the DNS for the add-dns and update-dns functions"
+    echo "  --ip <ip>      Define the IP for the add-dns and update-dns functions"
+    echo "  --cname <cname> Define the CNAME for the add-cname and update-cname functions"
+    echo "  --help         Shows this help message"
+    echo ""
+    echo "Exemples:"
+    echo "  $0 add-dns --dns domain.com --ip 192.168.0.9"
+    echo "  $0 update-dns --dns domain.com --ip 192.168.0.10"
+    echo "  $0 add-cname --cname alias.domain.com --dns domain.com"
+    echo "  $0 update-cname --cname alias.domain.com --dns domain.com"
+    exit 0
+}
+
+# Function to handle the main logic
+main() {
+    if [[ "$1" == "--help" ]]; then
+        usage
+    fi
+
+    if [ $# -lt 2 ]; then
+        echo "Erro: Comando e opções são necessários."
+        usage
+    fi
+
+    COMMAND="$1"
+    shift
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dns)
+                DNS="$2"
+                shift 2
+                ;;
+            --ip)
+                IP="$2"
+                shift 2
+                ;;
+            --cname)
+                CNAME="$2"
+                shift 2
+                ;;
+            *)
+                echo "Erro: Opção desconhecida: $1"
+                usage
+                ;;
+        esac
+    done
+
+    case "$COMMAND" in
+        add-dns)
+            if [ -z "$DNS" ] || [ -z "$IP" ]; then
+                echo "Erro: --dns e --ip são necessários para add-dns"
+                usage
+            fi
+            add_dns "$DNS" "$IP"
+            ;;
+        update-dns)
+            if [ -z "$DNS" ] || [ -z "$IP" ]; then
+                echo "Erro: --dns e --ip são necessários para update-dns"
+                usage
+            fi
+            update_dns "$DNS" "$IP"
+            ;;
+        add-cname)
+            if [ -z "$CNAME" ] || [ -z "$DNS" ]; then
+                echo "Erro: --cname e --dns são necessários para add-cname"
+                usage
+            fi
+            add_cname "$CNAME" "$DNS"
+            ;;
+        update-cname)
+            if [ -z "$CNAME" ] || [ -z "$DNS" ]; then
+                echo "Erro: --cname e --dns são necessários para update-cname"
+                usage
+            fi
+            update_cname "$CNAME" "$DNS"
+            ;;
+        *)
+            echo "Comando desconhecido: $COMMAND"
+            usage
+            ;;
+    esac
+}
+
+main "$@"
